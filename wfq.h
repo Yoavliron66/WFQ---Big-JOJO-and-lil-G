@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdbool.h>
+
 
 // Define the maximum line Length for reading input
 #define MAX_LINE_LENGTH 512
