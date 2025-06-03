@@ -141,6 +141,10 @@ int main(){
         }
         // Free the packet memory
         free(next_packet);
-    }    
+    }
+    // Free the flow linked list
+    free_flows(flows);
+    // exit the program
+    return 0;
 }
 
