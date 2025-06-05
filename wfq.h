@@ -2,7 +2,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
+#include <math.h>
+#include <stdbool.h>
+#include <float.h>
 
 // Define the maximum line Length for reading input
 #define MAX_LINE_LENGTH 512
@@ -11,69 +13,85 @@
 // Defone the maximum number of packets
 #define MAX_PACKETS 100000
 // Define the flow structure
-typedef struct FLOW{
+typedef struct FLOW
+{
     int source_port;
     int destination_port;
-    char source_ip[16]; // IPv4 address in dotted decimal format
-    char destination_ip[16]; // IPv4 address in dotted decimal format
-    int weight; // Weight of the flow
-    int packet_count_active; // The number of active packets in the WFQ queue 
+    char source_ip[16];       // IPv4 address in dotted decimal format
+    char destination_ip[16];  // IPv4 address in dotted decimal format
+    double weight;            // Weight of the flow
+    int packet_count_active;  // The number of active packets in the WFQ queue
     float last_finished_time; // The last finished time of the flow
-    struct FLOW* next; // Pointer to the next flow in the linked list
+    struct FLOW *next;        // Pointer to the next flow in the linked list
 } flow;
 
 // Define the packet structure
-typedef struct PACKET{
+typedef struct PACKET
+{
     int source_port;
     int destination_port;
-    char source_ip[16]; // IPv4 address in dotted decimal format
-    char destination_ip[16]; // IPv4 address in dotted decimal format
-    int weight; // Weight of the flow
-    int length; // Length of the packet
-    int arrival_time; // The arrival time of the packet
+    char source_ip[16];         // IPv4 address in dotted decimal format
+    char destination_ip[16];    // IPv4 address in dotted decimal format
+    double weight;              // Weight of the flow
+    int length;                 // Length of the packet
+    int arrival_time;           // The arrival time of the packet
     float virtual_arrival_time; // The virtual arrival time of the packet
-    float virtual_finish_time; // The virtual finish time of the packet
+    float virtual_finish_time;  // The virtual finish time of the packet
+    bool hasWeight;             // Flag to indicate if the packet has a weight
 } packet;
-
 
 /////////////////////
 // MIN HEAP IMPLEMENTATION
 /////////////////////
 #define MAX_HEAP_SIZE MAX_PACKETS
 
-typedef struct HEAP {
-    packet* packets[MAX_HEAP_SIZE];
+typedef struct HEAP
+{
+    packet *packets[MAX_HEAP_SIZE];
     int size;
 } heap;
 
-int compare_packets(const packet* a, const packet* b) {
-    if (a->virtual_finish_time < b->virtual_finish_time) return -1;
-    if (a->virtual_finish_time > b->virtual_finish_time) return 1;
-    if (a->arrival_time < b->arrival_time) return -1;
-    if (a->arrival_time > b->arrival_time) return 1;
+int compare_packets(const packet *a, const packet *b)
+{
+    if (a->virtual_finish_time < b->virtual_finish_time)
+        return -1;
+    if (a->virtual_finish_time > b->virtual_finish_time)
+        return 1;
+    if (a->arrival_time < b->arrival_time)
+        return -1;
+    if (a->arrival_time > b->arrival_time)
+        return 1;
     return 0;
 }
 
-void swap(packet** heap, int i, int j) {
-    packet* temp = heap[i];
+void swap(packet **heap, int i, int j)
+{
+    packet *temp = heap[i];
     heap[i] = heap[j];
     heap[j] = temp;
 }
 
-void heapify_up(packet** heap, int index) {
-    while (index > 0) {
+void heapify_up(packet **heap, int index)
+{
+    while (index > 0)
+    {
         int parent = (index - 1) / 2;
-        if (compare_packets(heap[index], heap[parent]) < 0) {
+        if (compare_packets(heap[index], heap[parent]) < 0)
+        {
             swap(heap, index, parent);
             index = parent;
-        } else {
+        }
+        else
+        {
             break;
         }
     }
 }
 
-void heapify_down(packet** heap, int heap_size, int index) {
-    while (1) {
+void heapify_down(packet **heap, int heap_size, int index)
+{
+    while (1)
+    {
         int smallest = index;
         int left = 2 * index + 1;
         int right = 2 * index + 2;
@@ -83,17 +101,84 @@ void heapify_down(packet** heap, int heap_size, int index) {
         if (right < heap_size && compare_packets(heap[right], heap[smallest]) < 0)
             smallest = right;
 
-        if (smallest != index) {
+        if (smallest != index)
+        {
             swap(heap, index, smallest);
             index = smallest;
-        } else {
+        }
+        else
+        {
             break;
         }
     }
 }
 
-void push_packet(packet** heap, int* heap_size, packet* p) {
-    if (*heap_size >= MAX_HEAP_SIZE) {
+void compareOutputWithExpected(const char *expectedFilePath)
+{
+    FILE *expectedFile = fopen(expectedFilePath, "r");
+    FILE *actualFile = fopen("out8.txt", "r");
+    FILE *mismatchesFile = fopen("mismatches.txt", "w");
+
+    if (!expectedFile || !actualFile || !mismatchesFile)
+    {
+        fprintf(stderr, "Error opening files for comparison.\n");
+        return;
+    }
+
+    char expectedLine[MAX_LINE_LENGTH];
+    char actualLine[MAX_LINE_LENGTH];
+    int lineNumber = 1;
+    bool match = true;
+    int count = 0;
+    fprintf(stderr, "\n-----------------------------------------------------------------------------\n\n");
+
+    while (fgets(expectedLine, sizeof(expectedLine), expectedFile) &&
+           fgets(actualLine, sizeof(actualLine), actualFile))
+    {
+        // Remove trailing newline characters
+        expectedLine[strcspn(expectedLine, "\r\n")] = 0;
+        actualLine[strcspn(actualLine, "\r\n")] = 0;
+
+        if (strcmp(expectedLine, actualLine) != 0)
+        {
+            fprintf(mismatchesFile, "Mismatch at line %d:\nExpected: %s\nActual  : %s\n\n",
+                    lineNumber, expectedLine, actualLine);
+            if (count < 5)
+            {
+                fprintf(stderr, "Mismatch at line %d:\nExpected: %s\nActual  : %s\n\n",
+                        lineNumber, expectedLine, actualLine);
+                count++;
+            }
+            match = false;
+        }
+        lineNumber++;
+    }
+
+    // Check if one file has extra lines
+    if (fgets(expectedLine, sizeof(expectedLine), expectedFile) ||
+        fgets(actualLine, sizeof(actualLine), actualFile))
+    {
+        fprintf(mismatchesFile, "File lengths differ after line %d.\n", lineNumber - 1);
+        fprintf(stderr, "File lengths differ after line %d.\n", lineNumber - 1);
+        match = false;
+    }
+
+    if (match)
+    {
+        fprintf(mismatchesFile, "Output matches expected file.\n");
+        fprintf(stderr, "Output matches expected file.\n");
+    }
+    fprintf(stderr, "-----------------------------------------------------------------------------\n");
+
+    fclose(expectedFile);
+    fclose(actualFile);
+    fclose(mismatchesFile);
+}
+
+void push_packet(packet **heap, int *heap_size, packet *p)
+{
+    if (*heap_size >= MAX_HEAP_SIZE)
+    {
         fprintf(stderr, "Heap overflow\n");
         exit(EXIT_FAILURE);
     }
@@ -102,34 +187,40 @@ void push_packet(packet** heap, int* heap_size, packet* p) {
     (*heap_size)++;
 }
 
-packet* pop_packet(packet** heap, int* heap_size) {
-    if (*heap_size == 0) return NULL;
-    packet* top = heap[0];
+packet *pop_packet(packet **heap, int *heap_size)
+{
+    if (*heap_size == 0)
+        return NULL;
+    packet *top = heap[0];
     (*heap_size)--;
     heap[0] = heap[*heap_size];
     heapify_down(heap, *heap_size, 0);
     return top;
 }
 
-packet* top_packet(packet** heap, int heap_size) {
+packet *top_packet(packet **heap, int heap_size)
+{
     return heap_size > 0 ? heap[0] : NULL;
 }
 
-void init_heap(heap* h) {
+void init_heap(heap *h)
+{
     h->size = 0;
-    for (int i = 0; i < MAX_HEAP_SIZE; i++) {
+    for (int i = 0; i < MAX_HEAP_SIZE; i++)
+    {
         h->packets[i] = NULL;
     }
 }
-
 
 ////////////////////////////////////
 // FLOW linked list functions
 ////////////////////////////////////
 
-flow* create_flow(int source_port, int destination_port, const char* source_ip, const char* destination_ip, int weight) {
-    flow* new_flow = (flow*)malloc(sizeof(flow));
-    if (!new_flow) {
+flow *create_flow(int source_port, int destination_port, const char *source_ip, const char *destination_ip, int weight)
+{
+    flow *new_flow = (flow *)malloc(sizeof(flow));
+    if (!new_flow)
+    {
         fprintf(stderr, "Memory allocation failed for flow\n");
         exit(EXIT_FAILURE);
     }
@@ -146,55 +237,69 @@ flow* create_flow(int source_port, int destination_port, const char* source_ip, 
     return new_flow;
 }
 
-
-void append_flow(flow** head, flow* new_flow) {
-    if (*head == NULL) {
+void append_flow(flow **head, flow *new_flow)
+{
+    if (*head == NULL)
+    {
         *head = new_flow;
-    } else {
-        flow* current = *head;
-        while (current->next != NULL) {
+    }
+    else
+    {
+        flow *current = *head;
+        while (current->next != NULL)
+        {
             current = current->next;
         }
         current->next = new_flow;
     }
 }
 
-void remove_flow(flow** head, flow* target_flow) {
-    if (*head == NULL) return;
+void remove_flow(flow **head, flow *target_flow)
+{
+    if (*head == NULL)
+        return;
 
-    if (*head == target_flow) {
-        flow* temp = *head;
+    if (*head == target_flow)
+    {
+        flow *temp = *head;
         *head = (*head)->next;
         free(temp);
         return;
     }
 
-    flow* current = *head;
-    while (current->next != NULL && current->next != target_flow) {
+    flow *current = *head;
+    while (current->next != NULL && current->next != target_flow)
+    {
         current = current->next;
     }
 
-    if (current->next == target_flow) {
-        flow* temp = current->next;
+    if (current->next == target_flow)
+    {
+        flow *temp = current->next;
         current->next = current->next->next;
         free(temp);
     }
 }
 
-void free_flows(flow* head) {
-    flow* current = head;
-    while (current != NULL) {
-        flow* next = current->next;
+void free_flows(flow *head)
+{
+    flow *current = head;
+    while (current != NULL)
+    {
+        flow *next = current->next;
         free(current);
         current = next;
     }
 }
 
-int total_active_weights(flow* head) {
+int total_active_weights(flow *head)
+{
     int total_weight = 0;
-    flow* current = head;
-    while (current != NULL) {
-        if (current->packet_count_active > 0) {
+    flow *current = head;
+    while (current != NULL)
+    {
+        if (current->packet_count_active > 0)
+        {
             total_weight += current->weight;
         }
         current = current->next;
@@ -202,8 +307,8 @@ int total_active_weights(flow* head) {
     return total_weight;
 }
 
-
 // max float function
-float max_float(float a, float b) {
+float max_float(float a, float b)
+{
     return (a > b) ? a : b;
 }
