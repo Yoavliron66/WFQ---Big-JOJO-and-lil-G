@@ -177,7 +177,7 @@ int main()
         // Update the virtual time
         virtual_time = virtual_time + (float)(current_time - previous_time) / (float)total_active_weights(flows);
         // Print the start of the transmission
-        fprintf(stdout, "%d: %d %15s %d %15s %d %d %d\n", current_time, next_packet->arrival_time, next_packet->source_ip, next_packet->source_port, next_packet->destination_ip, next_packet->destination_port, next_packet->length, next_packet->weight);
+        fprintf(stdout, "%d: %d %s %d %s %d %d %.2f\n", current_time, next_packet->arrival_time, next_packet->source_ip, next_packet->source_port, next_packet->destination_ip, next_packet->destination_port, next_packet->length, next_packet->weight);
         // advance the wfq transmission finish time
         wfq_transmission_finish_time = current_time + next_packet->length;
         // Update the flow active packet count
@@ -200,7 +200,7 @@ int main()
         free(next_packet);
     }
     // Free the flow linked list
-    compareOutputWithExpected("out8_correct.txt");
+    compareOutputWithExpected("out9+_correct.txt");
 
     free_flows(flows);
     // exit the program

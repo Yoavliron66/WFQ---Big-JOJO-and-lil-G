@@ -116,7 +116,7 @@ void heapify_down(packet **heap, int heap_size, int index)
 void compareOutputWithExpected(const char *expectedFilePath)
 {
     FILE *expectedFile = fopen(expectedFilePath, "r");
-    FILE *actualFile = fopen("out8.txt", "r");
+    FILE *actualFile = fopen("out9+.txt", "r");
     FILE *mismatchesFile = fopen("mismatches.txt", "w");
 
     if (!expectedFile || !actualFile || !mismatchesFile)
